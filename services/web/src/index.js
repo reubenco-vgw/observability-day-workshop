@@ -1,6 +1,6 @@
 // import { HoneycombWebSDK, WebVitalsInstrumentation } from '@honeycombio/opentelemetry-web';
-// import { getWebAutoInstrumentations } from '@opentelemetry/auto-instrumentations-web';
-
+import { getWebAutoInstrumentations } from '@opentelemetry/auto-instrumentations-web';
+import {trace } from '@opentelemetry/api';
 // const sdk = new HoneycombWebSDK({
 //     apiKey: process.env.HONEYCOMB_API_KEY,
 //     serviceName: 'web',
@@ -17,31 +17,35 @@ async function fetchPicture() {
         document.getElementById('loading-meme').style = "display:block";
         document.getElementById('message').innerText = "Generating meme...";
         document.getElementById('message').style = "display:block";
-
-        const response = await fetch('/backend/createPicture', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            // Optionally, you can send data in the request body if needed
-            // body: JSON.stringify({ /* any data you want to send */ })
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to fetch picture');
-        }
-
-        // Convert the binary response to a blob
-        const blob = await response.blob();
-
-        // Create a URL for the blob
-        const imgUrl = URL.createObjectURL(blob);
+        await trace.getTracer('frontend').startActiveSpan('loading', async (newSpan) => { // INSTRUMENTATION 2: a span that will have children
+            const response = await fetch('/backend/createPicture', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                // Optionally, you can send data in the request body if needed
+                // body: JSON.stringify({ /* any data you want to send */ })
+            });
+    
+            if (!response.ok) {
+                throw new Error('Failed to fetch picture');
+            }
+    
+            // Convert the binary response to a blob
+            const blob = await response.blob();
+    
+            // Create a URL for the blob
+            const imgUrl = URL.createObjectURL(blob);
+            document.getElementById('loading-meme').style = "display:none";
+            document.getElementById('message').style = "display:none";
+            document.getElementById('picture').src = imgUrl;
+            document.getElementById('picture').style = "display:block;";
+            newSpan.end(); // INSTRUMENTATION: you don't get telemetry for creating spans. You get it for ending spans
+        }); // INSTRUMENTATION 2: end the callback
+        
 
         // Set the image source to the URL
-        document.getElementById('loading-meme').style = "display:none";
-        document.getElementById('message').style = "display:none";
-        document.getElementById('picture').src = imgUrl;
-        document.getElementById('picture').style = "display:block;";
+       
     } catch (error) {
         console.error('Error fetching picture:', error);
         document.getElementById('loading-meme').style = "display:none";

@@ -6,8 +6,8 @@ from opentelemetry import trace
 from download import generate_random_filename, download_image
 from custom_span_processor import CustomSpanProcessor
 
-# tracer_provider = trace.get_tracer_provider() # an entry_point: https://github.com/open-telemetry/opentelemetry-python/blob/main/opentelemetry-sdk/pyproject.toml
-# tracer_provider.add_span_processor(CustomSpanProcessor()) # INSTRUMENTATION: add custom span processor, which puts the free_space on every span.
+tracer_provider = trace.get_tracer_provider() # an entry_point: https://github.com/open-telemetry/opentelemetry-python/blob/main/opentelemetry-sdk/pyproject.toml
+tracer_provider.add_span_processor(CustomSpanProcessor()) # INSTRUMENTATION: add custom span processor, which puts the free_space on every span.
 
 # # Acquire a tracer
 tracer = trace.get_tracer("meminator-tracer")
@@ -58,14 +58,15 @@ def meminate():
     
     # #  Execute ImageMagick command to apply text to the image 
     # # INSTRUMENTATION: put this unit of work in its own span
-    # with tracer.start_as_current_span("span-name") as subprocess_span:
-    # subprocess_span.set_attribute("app.subprocess.command", " ".join(command))
-    result = subprocess.run(command, capture_output=True, text=True)
-    # subprocess_span.set_attribute("app.subprocess.returncode", result.returncode)
-    # subprocess_span.set_attribute("app.subprocess.stdout", result.stdout)
-    # subprocess_span.set_attribute("app.subprocess.stderr", result.stderr)
-    if result.returncode != 0:
-        raise Exception("Subprocess failed with return code:", result.returncode)
+    with tracer.start_as_current_span("apply text to image") as subprocess_span:
+        subprocess_span.set_attribute("app.subprocess.command", " ".join(command))
+        result = subprocess.run(command, capture_output=True, text=True)
+        subprocess_span.set_attribute("app.subprocess.returncode", result.returncode)
+        subprocess_span.set_attribute("app.subprocess.stdout", result.stdout)
+        subprocess_span.set_attribute("app.subprocess.stderr", result.stderr)
+        if result.returncode != 0:
+            subprocess_span.set_attribute("app.subprocess.error", "non-zero error")
+            raise Exception("Subprocess failed with return code:", result.returncode)
         
     # Serve the modified image
     return send_file(
